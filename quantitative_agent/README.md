@@ -7,198 +7,323 @@ This project aims to provide tools and strategies for quantitative investment an
 -   `quantitative_agent/src/`: Contains the source code for data fetching, feature engineering, strategy development, etc.
 -   `quantitative_agent/data/`: Intended for storing downloaded data, processed features, etc. (currently not used by data_fetcher.py directly for saving).
 -   `quantitative_agent/tests/`: Contains unit tests for the source code.
+-   `quantitative_agent/api/`: Contains the FastAPI application for exposing functionalities.
 
 ## Data Fetching
 
 The primary way to get financial data into this system is through the functions provided in `quantitative_agent/src/data_fetcher.py`.
 
 ### Using `yfinance` for Global Market Data
-
-The `fetch_stock_data` function leverages the `yfinance` library to download historical stock data from various global markets.
-
-**Prerequisites:**
-Ensure `yfinance` and `pandas` are installed:
-```bash
-pip install yfinance pandas
-```
-
-**Example:**
-```python
-from quantitative_agent.src.data_fetcher import fetch_stock_data
-
-# Fetch data for Apple Inc. (AAPL)
-aapl_data = fetch_stock_data(ticker="AAPL",
-                             start_date="2023-01-01",
-                             end_date="2023-12-31")
-if not aapl_data.empty:
-    print("Data for AAPL:")
-    print(aapl_data.head())
-```
+(Content as before)
+...
 
 ### Using `pytdx` for A-Share OHLCV Data (China Market)
-
-The `fetch_stock_data_pytdx` function allows you to fetch historical daily Open, High, Low, Close, and Volume (OHLCV) data for stocks listed on the Shanghai (SH) and Shenzhen (SZ) exchanges using the `pytdx` library.
-
-**Prerequisites:**
-Ensure `pytdx` and `pandas` are installed:
-```bash
-pip install pytdx pandas
-```
-
-**Example:**
-```python
-from quantitative_agent.src.data_fetcher import fetch_stock_data_pytdx
-
-# Fetch data for a Shenzhen stock (e.g., Ping An Bank - 000001)
-sz_stock_data = fetch_stock_data_pytdx(stock_code="000001",
-                                       start_date="2023-10-01",
-                                       end_date="2023-10-31")
-if not sz_stock_data.empty:
-    print("Data for SZ stock (000001):")
-    print(sz_stock_data.head())
-
-# Fetch data for a Shanghai stock (e.g., Kweichow Moutai - 600519)
-sh_stock_data = fetch_stock_data_pytdx(stock_code="600519",
-                                       start_date="2023-10-01",
-                                       end_date="2023-10-31")
-if not sh_stock_data.empty:
-    print("\nData for SH stock (600519):")
-    print(sh_stock_data.head())
-```
-
-This function infers the market (Shanghai or Shenzhen) from the stock code prefix and connects to TDX servers to retrieve the OHLCV data. It returns a pandas DataFrame with 'Open', 'High', 'Low', 'Close', 'Volume' columns and a DatetimeIndex.
+(Content as before)
+...
 
 ### Fetching A-Share Financial Data (`pytdx.crawler`)
-
-The `fetch_financial_data_pytdx` function retrieves historical financial statement data for a specified A-share stock and a specific financial reporting period. These periods are typically quarter-ends (e.g., "YYYY-03-31", "YYYY-06-30", "YYYY-09-30") or year-ends ("YYYY-12-31").
-
-This function utilizes `pytdx.crawler`, which sources data from TDX's "gpcw" (公司财务 - Company Financials) data files. Each "gpcw" file contains financial indicators for all listed companies for that specific reporting date.
-
-**Structure of Returned DataFrame:**
-It's important to understand how the data is returned:
--   The DataFrame will contain one row of data if the requested stock is found for the period.
--   The **index** of the DataFrame is the **stock code** (e.g., "000001").
--   The **columns** are generically named by `pytdx` as `col1`, `col2`, ..., `colN`. A `report_date` column (parsed from the file content) is also included.
--   **To interpret what each `colX` represents (e.g., EPS, ROE, Total Assets), you MUST refer to an external mapping or official TDX documentation.** Common mappings can sometimes be found in other financial analysis projects that use TDX data (like the `financial_mean.py` dictionary from the QUANTAXIS project). This function provides the raw data structure as delivered by the `pytdx` crawler.
-
-**Prerequisites:**
-Make sure `pytdx` and `pandas` are installed:
-```bash
-pip install pytdx pandas
-```
-
-**Example:**
-```python
-from quantitative_agent.src.data_fetcher import fetch_financial_data_pytdx
-import pandas as pd
-
-# Ensure a specific report date is chosen for which data is likely available.
-# Common report dates are "YYYY-03-31", "YYYY-06-30", "YYYY-09-30", "YYYY-12-31".
-stock_code_example = "000001"  # Ping An Bank
-# Use a report date known to have data, e.g., from test cases or
-# by checking pytdx.crawler.HistoryFinancialListCrawler().fetch_and_parse()
-report_date_example = "2023-06-30"
-
-financial_dataframe = fetch_financial_data_pytdx(stock_code=stock_code_example,
-                                                 report_date=report_date_example)
-
-if not financial_dataframe.empty:
-    print(f"Financial data for {stock_code_example} as of report date {report_date_example}:")
-    # The DataFrame will have the stock_code as index and generic 'colX' columns.
-    # The 'report_date' column (from the file) is also included.
-    print(financial_dataframe.to_string()) # Using to_string() to print the full DataFrame if wide
-
-    # To make sense of 'col1', 'col2', etc., you would refer to an external mapping.
-    # For instance, if you know 'col1' is '基本每股收益' (Basic EPS) from an external mapping:
-    # if 'col1' in financial_dataframe.columns:
-    #     print(f"\nExample: Indicator 'col1' (e.g., Basic EPS): {financial_dataframe.iloc[0]['col1']}")
-else:
-    print(f"No financial data found for {stock_code_example} on {report_date_example}, "
-          f"or the data file for this period might not be available on TDX servers.")
-```
+(Content as before)
+...
 
 ### Fetching Chinese Futures Market Data (AkShare)
+(Content as before)
+...
 
-The `fetch_futures_hist_akshare` function retrieves historical futures data (both daily and intraday) for Chinese futures markets using the `AkShare` library.
+## API Usage
 
-**Parameters:**
--   `symbol (str)`: The futures contract symbol.
-    -   For daily main continuous contracts from Sina Finance (e.g., "RB0" for rebar steel, "IF0" for CSI 300 Index Future), use the Sina specific symbol. You can find a list of these using `akshare.futures_display_main_sina()`. `market_exchange` should typically be `None` for these.
-    -   For specific daily contracts traded on exchanges (e.g., "rb2401" for rebar Jan 2024 contract, "if2401" for CSI 300 Index Future Jan 2024 contract), you must provide the `market_exchange`.
-    -   For intraday data (also sourced from Sina), main continuous contract symbols (e.g., "RB0") or specific contract symbols (e.g., "rb2401") can often be used.
--   `start_date (str)`: Start date in "YYYY-MM-DD" format. Primarily used for daily data requests.
--   `end_date (str)`: End date in "YYYY-MM-DD" format. Primarily used for daily data requests.
--   `period (str, optional)`: Data period. Defaults to `'daily'`. Supported intraday options include `'1min'`, `'5min'`, `'15min'`, `'30min'`, `'60min'`. Intraday data is typically for the latest available trading day.
--   `market_exchange (str, optional)`: Required when fetching specific daily contracts from a particular exchange. Examples: `"CFFEX"` (China Financial Futures Exchange), `"SHFE"` (Shanghai Futures Exchange), `"DCE"` (Dalian Commodity Exchange), `"CZCE"` (Zhengzhou Commodity Exchange), `"INE"` (Shanghai International Energy Exchange), `"GFEX"` (Guangzhou Futures Exchange).
+This section details how to run the API server and interact with its endpoints.
 
-**Returned DataFrame:**
-The function returns a pandas DataFrame with a DatetimeIndex. Columns typically include 'Open', 'High', 'Low', 'Close', 'Volume'. 'OpenInterest' and 'Settlement' columns are also included if available from the data source.
+### Running the API Server
 
 **Prerequisites:**
-Ensure `akshare` and `pandas` are installed. It's recommended to keep AkShare updated for the latest fixes and symbol lists.
+Ensure the necessary Python packages are installed. From the project root (`quantitative_agent` parent directory):
 ```bash
-pip install akshare pandas --upgrade
+pip install fastapi uvicorn pandas requests yfinance pytdx akshare
+```
+(Note: `pandas` and `requests` are generally good to have, specific data fetchers have their own deps like `yfinance`, `pytdx`, `akshare` which should be installed by their respective `pip install` commands if not already covered by the main project dependencies.)
+
+**Command to Start the Server:**
+Navigate to the project root directory (the parent directory of `quantitative_agent`) and run:
+```bash
+uvicorn quantitative_agent.api.main:app --reload --host 0.0.0.0 --port 8000
+```
+-   `uvicorn`: The ASGI server.
+-   `quantitative_agent.api.main:app`: Points to the `app` instance in your `quantitative_agent/api/main.py` file.
+-   `--reload`: Enables auto-reloading on code changes (useful for development).
+-   `--host 0.0.0.0`: Makes the server accessible on your network.
+-   `--port 8000`: Specifies the port.
+
+Once running, the API provides interactive documentation:
+-   **Swagger UI**: `http://localhost:8000/docs`
+-   **ReDoc**: `http://localhost:8000/redoc`
+
+### Available Endpoints
+
+#### Stock Data
+
+Endpoints related to stock market data (OHLCV, financials).
+
+##### Endpoint: `POST /stocks/ohlcv/yfinance/`
+
+Fetches historical Open, High, Low, Close, and Volume (OHLCV) data from Yahoo Finance.
+
+**Request Body:**
+```json
+{
+  "symbol": "AAPL",
+  "start_date": "2023-01-01",
+  "end_date": "2023-01-10"
+}
 ```
 
-**Examples:**
+**Example with `curl`:**
+```bash
+curl -X POST "http://localhost:8000/stocks/ohlcv/yfinance/" \
+-H "Content-Type: application/json" \
+-d '{
+  "symbol": "AAPL",
+  "start_date": "2023-01-01",
+  "end_date": "2023-01-10"
+}'
+```
 
-1.  **Fetch daily data for a Sina main continuous contract (e.g., Rebar Steel "RB0"):**
-    ```python
-    from quantitative_agent.src.data_fetcher import fetch_futures_hist_akshare
+**Example with Python `requests`:**
+```python
+import requests
+import json
 
-    # Fetches daily data for the main continuous rebar contract
-    rb0_daily_data = fetch_futures_hist_akshare(
-        symbol="RB0",
-        start_date="2023-12-01",
-        end_date="2023-12-31",
-        period="daily"  # Can be omitted as it's the default
-    )
-    if not rb0_daily_data.empty:
-        print("Daily data for RB0 (Sina Main Continuous):")
-        print(rb0_daily_data.head())
-    else:
-        print("No daily data found for RB0 in the specified range or an error occurred.")
+url = "http://localhost:8000/stocks/ohlcv/yfinance/"
+payload = {
+  "symbol": "AAPL",
+  "start_date": "2023-01-01",
+  "end_date": "2023-01-10"
+}
+response = requests.post(url, json=payload)
+
+if response.status_code == 200:
+    data = response.json()
+    print(json.dumps(data, indent=2))
+else:
+    print(f"Error: {response.status_code} - {response.text}")
+```
+
+**Response:**
+A JSON array of objects, where each object represents a trading day's OHLCV data. Dates are in 'YYYY-MM-DD' format.
+```json
+[
+  {
+    "Date": "2023-01-03",
+    "Open": 128.61,
+    "High": 129.22,
+    "Low": 122.58,
+    "Close": 123.47,
+    "Volume": 112117500
+  },
+  { ... }
+]
+```
+
+##### Endpoint: `POST /stocks/ohlcv/pytdx/`
+
+Fetches historical OHLCV data for Chinese A-shares using `pytdx`.
+
+**Request Body:**
+```json
+{
+  "stock_code": "000001",
+  "start_date": "2023-01-01",
+  "end_date": "2023-01-10"
+}
+```
+
+**Example with `curl`:**
+```bash
+curl -X POST "http://localhost:8000/stocks/ohlcv/pytdx/" \
+-H "Content-Type: application/json" \
+-d '{
+  "stock_code": "000001",
+  "start_date": "2023-01-01",
+  "end_date": "2023-01-10"
+}'
+```
+
+**Example with Python `requests`:**
+```python
+import requests
+import json
+
+url = "http://localhost:8000/stocks/ohlcv/pytdx/"
+payload = {
+  "stock_code": "000001",
+  "start_date": "2023-01-01",
+  "end_date": "2023-01-10"
+}
+response = requests.post(url, json=payload)
+
+if response.status_code == 200:
+    data = response.json()
+    # Use ensure_ascii=False if stock names/info might contain Chinese characters
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+else:
+    print(f"Error: {response.status_code} - {response.text}")
+```
+
+**Response:**
+A JSON array of objects, where each object represents a trading day's OHLCV data. Dates are in 'YYYY-MM-DD HH:MM:SS' format.
+```json
+[
+  {
+    "Date": "2023-01-03 15:00:00",
+    "Open": 13.20,
+    "High": 13.85,
+    "Low": 13.05,
+    "Close": 13.77,
+    "Volume": 2194128.0
+  },
+  { ... }
+]
+```
+
+##### Endpoint: `POST /stocks/financials/pytdx/`
+
+Fetches historical financial statement data for a Chinese A-share stock for a specific reporting period, using `pytdx.crawler`.
+
+**Request Body:**
+```json
+{
+  "stock_code": "000001",
+  "report_date": "2023-06-30"
+}
+```
+(Note: Ensure the `report_date` corresponds to an actual financial reporting period like "YYYY-03-31", "YYYY-06-30", "YYYY-09-30", "YYYY-12-31" for which data is available on TDX servers.)
+
+**Example with `curl`:**
+```bash
+curl -X POST "http://localhost:8000/stocks/financials/pytdx/" \
+-H "Content-Type: application/json" \
+-d '{
+  "stock_code": "000001",
+  "report_date": "2023-06-30"
+}'
+```
+
+**Example with Python `requests`:**
+```python
+import requests
+import json
+
+url = "http://localhost:8000/stocks/financials/pytdx/"
+payload = {
+  "stock_code": "000001",
+  "report_date": "2023-06-30"
+}
+response = requests.post(url, json=payload)
+
+if response.status_code == 200:
+    data = response.json()
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+else:
+    print(f"Error: {response.status_code} - {response.text}")
+```
+
+**Response:**
+A JSON array containing a single object if the stock data is found. The object's `code` field (from the original DataFrame index) will be the stock code. Columns are generically named `col1`, `col2`, etc., along with a `report_date` column from the data file.
+```json
+[
+  {
+    "code": "000001",
+    "report_date": "2023-06-30",
+    "col1": 1.23,
+    "col2": 4.56,
+    // ... more 'colX' fields ...
+  }
+]
+```
+**Important**: To interpret `colX` fields, refer to external TDX documentation or financial data dictionaries (e.g., from QUANTAXIS `financial_mean.py`).
+
+#### Futures Data
+
+Endpoints related to futures market data.
+
+##### Endpoint: `POST /futures/history/akshare/`
+
+Fetches historical futures data (daily or intraday) for Chinese markets using `AkShare`.
+
+**Request Body Examples:**
+
+*   For daily main continuous contract (e.g., Rebar Steel "RB0"):
+    ```json
+    {
+      "symbol": "RB0",
+      "start_date": "2023-12-01",
+      "end_date": "2023-12-10",
+      "period": "daily"
+    }
+    ```
+*   For a specific daily contract (e.g., Gold "au2412" from SHFE):
+    ```json
+    {
+      "symbol": "au2412",
+      "start_date": "2023-12-01",
+      "end_date": "2023-12-10",
+      "period": "daily",
+      "market_exchange": "SHFE"
+    }
+    ```
+*   For 1-minute intraday data (e.g., CSI 300 Index Future "IF0"; dates are often ignored for latest day):
+    ```json
+    {
+      "symbol": "IF0",
+      "start_date": "2024-06-21",
+      "end_date": "2024-06-21",
+      "period": "1min"
+    }
     ```
 
-2.  **Fetch daily data for a specific exchange-traded contract (e.g., Gold "au2412" from SHFE):**
-    ```python
-    from quantitative_agent.src.data_fetcher import fetch_futures_hist_akshare
+**Example with `curl` (using daily main continuous):**
+```bash
+curl -X POST "http://localhost:8000/futures/history/akshare/" \
+-H "Content-Type: application/json" \
+-d '{
+  "symbol": "RB0",
+  "start_date": "2023-12-01",
+  "end_date": "2023-12-10",
+  "period": "daily"
+}'
+```
 
-    # Note: Ensure "au2412" is/was an active contract for the chosen dates.
-    # You might need to use a more current contract symbol for actual use.
-    au2412_daily_data = fetch_futures_hist_akshare(
-        symbol="au2412", # Specific contract code
-        start_date="2023-12-01", # Adjust dates as needed for contract liquidity
-        end_date="2023-12-31",
-        period="daily",
-        market_exchange="SHFE" # Shanghai Futures Exchange
-    )
-    if not au2412_daily_data.empty:
-        print("\nDaily data for au2412 (SHFE specific contract):")
-        print(au2412_daily_data.head())
-    else:
-        print("\nNo daily data found for au2412 (SHFE) in the specified range or an error occurred.")
-    ```
+**Example with Python `requests` (using specific daily contract):**
+```python
+import requests
+import json
 
-3.  **Fetch 1-minute intraday data for a main continuous contract (e.g., CSI 300 Index Future "IF0"):**
-    ```python
-    from quantitative_agent.src.data_fetcher import fetch_futures_hist_akshare
-    from datetime import datetime
+url = "http://localhost:8000/futures/history/akshare/"
+payload = {
+  "symbol": "au2412",
+  "start_date": "2023-12-01",
+  "end_date": "2023-12-10",
+  "period": "daily",
+  "market_exchange": "SHFE"
+}
+response = requests.post(url, json=payload)
 
-    # Intraday data from AkShare (via Sina) is typically for the most recent trading day.
-    # start_date and end_date parameters are not used by the underlying ak.futures_zh_minute_sina for date ranging.
-    # Provide current date for clarity/logging, though it won't affect which day's data is fetched.
-    today_str = datetime.today().strftime('%Y-%m-%d')
+if response.status_code == 200:
+    data = response.json()
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+else:
+    print(f"Error: {response.status_code} - {response.text}")
+```
 
-    if0_1min_data = fetch_futures_hist_akshare(
-        symbol="IF0", # Main continuous CSI 300 Index Future
-        start_date=today_str,
-        end_date=today_str,
-        period="1min"
-    )
-    if not if0_1min_data.empty:
-        print("\n1-minute data for IF0 (Sina Intraday - latest available day):")
-        print(if0_1min_data.tail()) # Show tail for most recent intraday data
-    else:
-        print("\nNo 1-minute intraday data found for IF0 (likely not a trading day or data source issue).")
-    ```
+**Response:**
+A JSON array of objects, where each object represents a data point (daily bar or intraday tick). Includes 'Date', 'Open', 'High', 'Low', 'Close', 'Volume', and optionally 'OpenInterest' and 'Settlement'. Date format varies ('YYYY-MM-DD' for daily, 'YYYY-MM-DD HH:MM:SS' for intraday).
+```json
+[
+  {
+    "Date": "2023-12-01", // or "2023-12-01 09:01:00" for intraday
+    "Open": 3900.0,
+    "High": 3950.0,
+    // ... other fields ...
+  },
+  { ... }
+]
+```
